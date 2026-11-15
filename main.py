@@ -2,7 +2,6 @@ import tkinter as tk
 from tkinter import ttk
 import sqlite3
 
-# Projeto CindyPet - Ambiente de desenvolvimento
 janela = tk.Tk()
 
 janela.title("CindyPet - Sistema Pet Shop")
@@ -175,14 +174,7 @@ def carregar_agendamento():
         tabela.insert(
             "",
             "end",
-            values=(registro[0], 
-                    registro[1], 
-                    registro[2], 
-                    registro[3], 
-                    registro[4], 
-                    registro[5], 
-                    registro[6]
-                    )
+            values=registro
         )
 
 
@@ -191,6 +183,9 @@ def atualizar():
     if not item:
         print("Nenhum item selecionado para atualização.")
         return
+
+    valores = tabela.item(item[0], "values")
+    id_atendimento = valores[0]
 
     updated_pet = entrada_pet.get()
     updated_tutor = entrada_tutor.get()
@@ -205,10 +200,40 @@ def atualizar():
     updated_UF = entrada_UF.get()
     updated_bairro = entrada_bairro.get()
 
-    valores = tabela.item(item, "values")
-    id_atendimento = valores[0]
+    cursor.execute("""
+        update agendamentos
+            set nome_pet = ?,
+            nome_tutor = ?,
+            telefone = ?,
+            servico = ?,
+            data = ?,
+            horario = ?,
+            cep = ?,
+            logradouro = ?,
+            numero = ?,
+            cidade = ?,
+            uf = ?,
+            bairro = ?
+        where id = ?
+    """, (updated_pet, 
+          updated_tutor, 
+          updated_telefone, 
+          updated_servico, 
+          updated_data, 
+          updated_horario, 
+          updated_cep, 
+          updated_logradouro, 
+          updated_numero, 
+          updated_cidade, 
+          updated_UF, 
+          updated_bairro, 
+          id_atendimento))
 
-    tabela.item(item, values=(id_atendimento, updated_pet, 
+    conexão.commit()
+
+    tabela.item(item[0], values=(
+                            id_atendimento, 
+                                updated_pet, 
                               updated_tutor, 
                               updated_telefone, 
                               updated_servico, 
@@ -221,14 +246,25 @@ def atualizar():
                               updated_UF,
                                 updated_bairro))
 
+    print("Agendamento atualizado com sucesso!")
+
 def excluir():
     item = tabela.selection()
-    if item: 
-        tabela.delete(item)
-        limpar()
-    else:
+    if not item: 
         print("Nenhum item selecionado para exclusão.")
-    
+        return
+    valores = tabela.item(item[0], "values")
+    id_atendimento = valores[0]
+
+    cursor.execute("DELETE FROM agendamentos WHERE id = ?", 
+                   (id_atendimento,)
+                   )
+    conexão.commit()
+
+    tabela.delete(item[0])
+    limpar()
+
+    print("Agendamento excluído com sucesso!")
 #-------
 #frames:
 #------
@@ -525,21 +561,6 @@ tabela.column("servico",anchor="center")
 tabela.column("data",anchor="center")
 tabela.column("horario",anchor="center")
 
-tabela.insert(
-    "",
-    "end",
-    values=(1, "Mel", "João", "(11) 9999-9999", "Banhoe e Tosa", "01/01/2023", "10:00")
-)
-tabela.insert(
-    "",
-    "end",
-    values=(2, "Thor", "Carlos", "","Consulta","","")
-)
-tabela.insert(
-    "",
-    "end",
-    values=(3, "Luna", "Mariana", "","Vacinação","","")
-)
 
 tabela.pack(fill="both", expand=True)
 
