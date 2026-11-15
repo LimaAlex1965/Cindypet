@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 import sqlite3
 
-
+# Projeto CindyPet - Ambiente de desenvolvimento
 janela = tk.Tk()
 
 janela.title("CindyPet - Sistema Pet Shop")
