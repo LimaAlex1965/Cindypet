@@ -27,26 +27,30 @@ titulo.pack(pady=15)
 #banco de dados:
 #--------------
 
-conexão = sqlite3.connect("cindy_pet.db")
-cursor = conexão.cursor()
-
-cursor.execute("""
-    CREATE TABLE IF NOT EXISTS agendamentos (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        nome_pet TEXT,
-        nome_tutor TEXT,
-        telefone TEXT,
-        servico TEXT,
-        data TEXT,
-        horario TEXT,
-        cep TEXT,
-        logradouro TEXT,
-        numero TEXT,
-        cidade TEXT,
-        uf TEXT,
-        bairro TEXT
-    )
-""")
+# Bloco try/except para proteger a inicialização do banco de dados
+try:
+    conexão = sqlite3.connect("cindy_pet.db")
+    cursor = conexão.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS agendamentos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome_pet TEXT,
+            nome_tutor TEXT,
+            telefone TEXT,
+            servico TEXT,
+            data TEXT,
+            horario TEXT,
+            cep TEXT,
+            logradouro TEXT,
+            numero TEXT,
+            cidade TEXT,
+            uf TEXT,
+            bairro TEXT
+        )
+    """)
+    conexão.commit()
+except Exception as erro:
+    messagebox.showerror("Erro no Banco", f"Falha ao conectar ou criar tabela no banco de dados: {erro}")
 
 #------
 #funções:
@@ -54,11 +58,15 @@ cursor.execute("""
 
 # Função para registrar ações no arquivo de log de auditoria
 def registrar_log(mensagem):
-    # Obtém a data e hora atual no formato [dd/mm/aaaa hh:mm:ss]
-    data_hora = datetime.now().strftime("[%d/%m/%Y %H:%M:%S]")
-    # Abre o arquivo no modo de adição ('a') para preservar o histórico anterior
-    with open("log_agendamentos.txt", "a", encoding="utf-8") as arquivo:
-        arquivo.write(f"{data_hora} {mensagem}\n")
+    # try/except para garantir que falhas no arquivo de log não quebrem o sistema
+    try:
+        # Obtém a data e hora atual no formato [dd/mm/aaaa hh:mm:ss]
+        data_hora = datetime.now().strftime("[%d/%m/%Y %H:%M:%S]")
+        # Abre o arquivo no modo de adição ('a') para preservar o histórico anterior
+        with open("log_agendamentos.txt", "a", encoding="utf-8") as arquivo:
+            arquivo.write(f"{data_hora} {mensagem}\n")
+    except Exception:
+        pass
 
 
 # Integração com a API do ViaCEP para buscar endereço pelo CEP
@@ -117,61 +125,62 @@ def buscar_cep(event=None):
 
 
 def cadastrar():
-    nome_pet = entrada_pet.get()
-    nome_tutor = entrada_tutor.get()
-    CEP = entrada_cep.get()
-    logradouro = entrada_logradouro.get()
-    numero = entrada_numero.get()
-    cidade = entrada_cidade.get()
-    UF = entrada_UF.get()
-    bairro = entrada_bairro.get()
-    telefone_tutor = entrada_tel.get()
-    servico = combo_servico.get()
-    data = entrada_data.get()
-    horario = entrada_horario.get()
+    # Limpeza das entradas do usuário usando .strip() e .replace()
+    nome_pet = entrada_pet.get().strip()
+    nome_tutor = entrada_tutor.get().strip()
+    telefone_tutor = entrada_tel.get().strip().replace("(", "").replace(")", "").replace("-", "").replace(" ", "")
+    servico = combo_servico.get().strip()
+    data = entrada_data.get().strip()
+    horario = entrada_horario.get().strip()
+    CEP = entrada_cep.get().strip().replace("-", "").replace(".", "")
+    logradouro = entrada_logradouro.get().strip()
+    numero = entrada_numero.get().strip()
+    cidade = entrada_cidade.get().strip()
+    UF = entrada_UF.get().strip().upper()
+    bairro = entrada_bairro.get().strip()
 
-    cursor.execute("""
-        INSERT INTO agendamentos (nome_pet, 
-                                 nome_tutor,
-                                telefone, 
-                                servico, 
-                                data, 
-                                horario, 
-                                cep, 
-                                logradouro, 
-                                numero, 
-                                cidade, 
-                                uf, 
-                                bairro)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (nome_pet, nome_tutor, telefone_tutor, servico, data, horario, CEP, logradouro, numero, cidade, UF, bairro))
+    # Validação simples para não cadastrar campos essenciais em branco
+    if not nome_pet or not nome_tutor:
+        messagebox.showwarning("Aviso", "Por favor, preencha pelo menos o Nome do Pet e o Nome do Tutor.")
+        return
 
+    # Bloco try/except para impedir que falhas no banco de dados travem o sistema
+    try:
+        cursor.execute("""
+            INSERT INTO agendamentos (nome_pet, 
+                                     nome_tutor, 
+                                     telefone, 
+                                     servico, 
+                                     data, 
+                                     horario, 
+                                     cep, 
+                                     logradouro, 
+                                     numero, 
+                                     cidade, 
+                                     uf, 
+                                     bairro)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (nome_pet, nome_tutor, telefone_tutor, servico, data, horario, CEP, logradouro, numero, cidade, UF, bairro))
 
-    conexão.commit()
-    id_atendimento = cursor.lastrowid
+        conexão.commit()
+        id_atendimento = cursor.lastrowid
 
+        tabela.insert(
+            "",
+            "end",
+            values=(id_atendimento, nome_pet, nome_tutor, telefone_tutor, servico, data, horario, CEP, logradouro, numero, cidade, UF, bairro)
+        )
 
-    tabela.insert(
-        "",
-        "end",
-        values=(id_atendimento, nome_pet, nome_tutor, telefone_tutor,servico, data, horario, CEP, logradouro, numero, cidade, UF, bairro )
-    )
+        # Registra a inserção no arquivo de log
+        registrar_log(f'INSERÇÃO - Agendamento Pet "{nome_pet}" (Tutor: {nome_tutor}, Serviço: {servico}) cadastrado com sucesso.')
 
-    # Registra a inserção no arquivo de log
-    registrar_log(f'INSERÇÃO - Agendamento Pet "{nome_pet}" (Tutor: {nome_tutor}, Serviço: {servico}) cadastrado com sucesso.')
+        # Limpa as entradas após o cadastro bem-sucedido
+        limpar()
+        messagebox.showinfo("Sucesso", "Agendamento cadastrado com sucesso!")
 
-    entrada_pet.delete(0, tk.END)
-    entrada_tutor.delete(0, tk.END)
-    entrada_cep.delete(0, tk.END)
-    entrada_logradouro.delete(0, tk.END)
-    entrada_numero.delete(0, tk.END)
-    entrada_cidade.delete(0, tk.END)
-    entrada_UF.delete(0, tk.END)
-    entrada_bairro.delete(0, tk.END)
-    entrada_tel.delete(0, tk.END)
-    combo_servico.set("")
-    entrada_data.delete(0, tk.END)
-    entrada_horario.delete(0, tk.END)
+    except Exception as erro:
+        # Alerta amigável ao usuário sem quebrar a aplicação
+        messagebox.showerror("Erro no Banco", f"Não foi possível cadastrar o agendamento: {erro}")
 
 def limpar():
     entrada_pet.delete(0, tk.END)
@@ -238,110 +247,135 @@ def seleciona():
     entrada_bairro.insert(0, bairro)
 
 def carregar_agendamento():
-    cursor.execute("SELECT * FROM agendamentos")
-    registros = cursor.fetchall()
-    for registro in registros:
-        tabela.insert(
-            "",
-            "end",
-            values=registro
-        )
+    # Bloco try/except para proteger o carregamento inicial dos dados
+    try:
+        cursor.execute("SELECT * FROM agendamentos")
+        registros = cursor.fetchall()
+        for registro in registros:
+            tabela.insert(
+                "",
+                "end",
+                values=registro
+            )
+    except Exception as erro:
+        print(f"Erro ao carregar agendamentos do banco de dados: {erro}")
 
 
 def atualizar():
     item = tabela.selection()
     if not item:
-        print("Nenhum item selecionado para atualização.")
+        # Alerta amigável caso o usuário clique em Atualizar sem selecionar um agendamento
+        messagebox.showwarning("Aviso", "Selecione um agendamento na tabela para atualizar.")
         return
 
     valores = tabela.item(item[0], "values")
     id_atendimento = valores[0]
 
-    updated_pet = entrada_pet.get()
-    updated_tutor = entrada_tutor.get()
-    updated_telefone = entrada_tel.get()
-    updated_servico = combo_servico.get()
-    updated_data = entrada_data.get()
-    updated_horario = entrada_horario.get()
-    updated_cep = entrada_cep.get()
-    updated_logradouro = entrada_logradouro.get() 
-    updated_numero = entrada_numero.get()
-    updated_cidade = entrada_cidade.get()
-    updated_UF = entrada_UF.get()
-    updated_bairro = entrada_bairro.get()
+    # Limpeza das entradas do usuário usando .strip() e .replace()
+    updated_pet = entrada_pet.get().strip()
+    updated_tutor = entrada_tutor.get().strip()
+    updated_telefone = entrada_tel.get().strip().replace("(", "").replace(")", "").replace("-", "").replace(" ", "")
+    updated_servico = combo_servico.get().strip()
+    updated_data = entrada_data.get().strip()
+    updated_horario = entrada_horario.get().strip()
+    updated_cep = entrada_cep.get().strip().replace("-", "").replace(".", "")
+    updated_logradouro = entrada_logradouro.get().strip() 
+    updated_numero = entrada_numero.get().strip()
+    updated_cidade = entrada_cidade.get().strip()
+    updated_UF = entrada_UF.get().strip().upper()
+    updated_bairro = entrada_bairro.get().strip()
 
-    cursor.execute("""
-        update agendamentos
-            set nome_pet = ?,
-            nome_tutor = ?,
-            telefone = ?,
-            servico = ?,
-            data = ?,
-            horario = ?,
-            cep = ?,
-            logradouro = ?,
-            numero = ?,
-            cidade = ?,
-            uf = ?,
-            bairro = ?
-        where id = ?
-    """, (updated_pet, 
-          updated_tutor, 
-          updated_telefone, 
-          updated_servico, 
-          updated_data, 
-          updated_horario, 
-          updated_cep, 
-          updated_logradouro, 
-          updated_numero, 
-          updated_cidade, 
-          updated_UF, 
-          updated_bairro, 
-          id_atendimento))
+    # Validação simples de campos essenciais
+    if not updated_pet or not updated_tutor:
+        messagebox.showwarning("Aviso", "Por favor, preencha pelo menos o Nome do Pet e o Nome do Tutor.")
+        return
 
-    conexão.commit()
+    # Bloco try/except para proteger operações no banco de dados contra falhas
+    try:
+        cursor.execute("""
+            UPDATE agendamentos
+                SET nome_pet = ?,
+                    nome_tutor = ?,
+                    telefone = ?,
+                    servico = ?,
+                    data = ?,
+                    horario = ?,
+                    cep = ?,
+                    logradouro = ?,
+                    numero = ?,
+                    cidade = ?,
+                    uf = ?,
+                    bairro = ?
+            WHERE id = ?
+        """, (updated_pet, 
+              updated_tutor, 
+              updated_telefone, 
+              updated_servico, 
+              updated_data, 
+              updated_horario, 
+              updated_cep, 
+              updated_logradouro, 
+              updated_numero, 
+              updated_cidade, 
+              updated_UF, 
+              updated_bairro, 
+              id_atendimento))
 
-    tabela.item(item[0], values=(
-                            id_atendimento, 
-                                updated_pet, 
-                              updated_tutor, 
-                              updated_telefone, 
-                              updated_servico, 
-                              updated_data, 
-                              updated_horario, 
-                              updated_cep, 
-                              updated_logradouro, 
-                              updated_numero, 
-                              updated_cidade, 
-                              updated_UF,
-                                updated_bairro))
+        conexão.commit()
 
-    # Registra a atualização no arquivo de log
-    registrar_log(f'ATUALIZAÇÃO - Agendamento ID {id_atendimento} alterado (Novo Serviço: {updated_servico}, Nova Data: {updated_data}).')
+        tabela.item(item[0], values=(
+            id_atendimento, 
+            updated_pet, 
+            updated_tutor, 
+            updated_telefone, 
+            updated_servico, 
+            updated_data, 
+            updated_horario, 
+            updated_cep, 
+            updated_logradouro, 
+            updated_numero, 
+            updated_cidade, 
+            updated_UF, 
+            updated_bairro
+        ))
 
-    print("Agendamento atualizado com sucesso!")
+        # Registra a atualização no arquivo de log
+        registrar_log(f'ATUALIZAÇÃO - Agendamento ID {id_atendimento} alterado (Novo Serviço: {updated_servico}, Nova Data: {updated_data}).')
+
+        messagebox.showinfo("Sucesso", "Agendamento atualizado com sucesso!")
+
+    except Exception as erro:
+        # Alerta amigável sem quebrar o sistema
+        messagebox.showerror("Erro no Banco", f"Não foi possível atualizar o agendamento: {erro}")
 
 def excluir():
     item = tabela.selection()
     if not item: 
-        print("Nenhum item selecionado para exclusão.")
+        # Alerta amigável caso o usuário clique em Excluir sem selecionar um registro
+        messagebox.showwarning("Aviso", "Selecione um agendamento na tabela para excluir.")
         return
     valores = tabela.item(item[0], "values")
     id_atendimento = valores[0]
     nome_pet = valores[1]
 
-    cursor.execute("DELETE FROM agendamentos WHERE id = ?", 
-                   (id_atendimento,)
-                   )
-    conexão.commit()
+    # Bloco try/except para proteger contra falha no banco de dados
+    try:
+        cursor.execute("DELETE FROM agendamentos WHERE id = ?", 
+                       (id_atendimento,)
+                       )
+        conexão.commit()
 
-    tabela.delete(item[0])
-    limpar()
+        tabela.delete(item[0])
+        limpar()
 
-    # Registra a exclusão no arquivo de log
-    registrar_log(f'EXCLUSÃO - Agendamento ID {id_atendimento} ("{nome_pet}") removido do sistema.')
+        # Registra a exclusão no arquivo de log
+        registrar_log(f'EXCLUSÃO - Agendamento ID {id_atendimento} ("{nome_pet}") removido do sistema.')
 
-    print("Agendamento excluído com sucesso!")
+        messagebox.showinfo("Sucesso", "Agendamento excluído com sucesso!")
+
+    except Exception as erro:
+        # Alerta amigável sem quebrar o sistema
+        messagebox.showerror("Erro no Banco", f"Não foi possível excluir o agendamento: {erro}")
 #-------
 #frames:
 #------
