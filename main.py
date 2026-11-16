@@ -1,6 +1,8 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 import sqlite3
+import urllib.request
+import json
 
 janela = tk.Tk()
 
@@ -48,6 +50,55 @@ cursor.execute("""
 #------
 #funções:
 #------
+
+# Integração com a API do ViaCEP para buscar endereço pelo CEP
+def buscar_cep(event=None):
+    # Pega o CEP digitado e remove espaços, traços e pontos
+    cep = entrada_cep.get().strip().replace("-", "").replace(".", "")
+
+    # Se a busca foi disparada pela digitação no teclado (KeyRelease), só consulta ao atingir 8 dígitos
+    if event and len(cep) != 8:
+        return
+
+    # Validação simples: verifica se possui exatamente 8 dígitos numéricos
+    if len(cep) != 8 or not cep.isdigit():
+        messagebox.showwarning("Aviso", "Por favor, digite um CEP válido com 8 números.")
+        return
+
+    try:
+        # URL da API gratuita do ViaCEP
+        url = f"https://viacep.com.br/ws/{cep}/json/"
+
+        # Faz a requisição web usando a biblioteca nativa urllib.request
+        requisicao = urllib.request.Request(url, headers={"User-Agent": "CindyPetApp"})
+        with urllib.request.urlopen(requisicao, timeout=5) as resposta:
+            dados = json.loads(resposta.read().decode("utf-8"))
+
+        # Se o CEP não for encontrado, a API retorna {'erro': 'true'}
+        if dados.get("erro"):
+            messagebox.showwarning("Aviso", "CEP não encontrado!")
+            return
+
+        # Preenche automaticamente os campos com o retorno da API
+        entrada_logradouro.delete(0, tk.END)
+        entrada_logradouro.insert(0, dados.get("logradouro", ""))
+
+        entrada_bairro.delete(0, tk.END)
+        entrada_bairro.insert(0, dados.get("bairro", ""))
+
+        entrada_cidade.delete(0, tk.END)
+        entrada_cidade.insert(0, dados.get("localidade", ""))
+
+        entrada_UF.delete(0, tk.END)
+        entrada_UF.insert(0, dados.get("uf", ""))
+
+        # Direciona o foco para o campo de número para o usuário apenas complementar
+        entrada_numero.focus()
+
+    except Exception:
+        # Alerta amigável caso ocorra erro de conexão sem travar o sistema
+        messagebox.showerror("Erro", "Não foi possível consultar o CEP. Verifique sua conexão com a internet.")
+
 
 def cadastrar():
     nome_pet = entrada_pet.get()
@@ -382,6 +433,8 @@ label_cep.grid(row=1, column=0, sticky="w", padx=10, pady=4)
 
 entrada_cep = tk.Entry(frame_endereco, width=40)
 entrada_cep.grid(row=1, column=1, padx=10, pady=4)
+# Dispara a busca automática do CEP ao digitar
+entrada_cep.bind("<KeyRelease>", buscar_cep)
 
     
 label_logradouro = tk.Label(
@@ -487,7 +540,8 @@ botao_buscar = tk.Button(
     bg="#315D7A",
     fg="white",
     font=("Arial", 12),
-    width=10
+    width=10,
+    command=buscar_cep
 )
 botao_buscar.grid(row=1, column=2, padx=10, pady=4)
 
