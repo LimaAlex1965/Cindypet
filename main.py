@@ -3,6 +3,7 @@ from tkinter import ttk, messagebox
 import sqlite3
 import urllib.request
 import json
+from datetime import datetime
 
 janela = tk.Tk()
 
@@ -51,6 +52,15 @@ cursor.execute("""
 #funções:
 #------
 
+# Função para registrar ações no arquivo de log de auditoria
+def registrar_log(mensagem):
+    # Obtém a data e hora atual no formato [dd/mm/aaaa hh:mm:ss]
+    data_hora = datetime.now().strftime("[%d/%m/%Y %H:%M:%S]")
+    # Abre o arquivo no modo de adição ('a') para preservar o histórico anterior
+    with open("log_agendamentos.txt", "a", encoding="utf-8") as arquivo:
+        arquivo.write(f"{data_hora} {mensagem}\n")
+
+
 # Integração com a API do ViaCEP para buscar endereço pelo CEP
 def buscar_cep(event=None):
     # Pega o CEP digitado e remove espaços, traços e pontos
@@ -94,6 +104,12 @@ def buscar_cep(event=None):
 
         # Direciona o foco para o campo de número para o usuário apenas complementar
         entrada_numero.focus()
+
+        # Registra a consulta do CEP no arquivo de log
+        cep_formatado = dados.get("cep", cep)
+        localidade = dados.get("localidade", "")
+        uf = dados.get("uf", "")
+        registrar_log(f'CONSULTA CEP - CEP "{cep_formatado}" consultado com sucesso ({localidade}/{uf}).')
 
     except Exception:
         # Alerta amigável caso ocorra erro de conexão sem travar o sistema
@@ -140,6 +156,9 @@ def cadastrar():
         "end",
         values=(id_atendimento, nome_pet, nome_tutor, telefone_tutor,servico, data, horario, CEP, logradouro, numero, cidade, UF, bairro )
     )
+
+    # Registra a inserção no arquivo de log
+    registrar_log(f'INSERÇÃO - Agendamento Pet "{nome_pet}" (Tutor: {nome_tutor}, Serviço: {servico}) cadastrado com sucesso.')
 
     entrada_pet.delete(0, tk.END)
     entrada_tutor.delete(0, tk.END)
@@ -297,6 +316,9 @@ def atualizar():
                               updated_UF,
                                 updated_bairro))
 
+    # Registra a atualização no arquivo de log
+    registrar_log(f'ATUALIZAÇÃO - Agendamento ID {id_atendimento} alterado (Novo Serviço: {updated_servico}, Nova Data: {updated_data}).')
+
     print("Agendamento atualizado com sucesso!")
 
 def excluir():
@@ -306,6 +328,7 @@ def excluir():
         return
     valores = tabela.item(item[0], "values")
     id_atendimento = valores[0]
+    nome_pet = valores[1]
 
     cursor.execute("DELETE FROM agendamentos WHERE id = ?", 
                    (id_atendimento,)
@@ -314,6 +337,9 @@ def excluir():
 
     tabela.delete(item[0])
     limpar()
+
+    # Registra a exclusão no arquivo de log
+    registrar_log(f'EXCLUSÃO - Agendamento ID {id_atendimento} ("{nome_pet}") removido do sistema.')
 
     print("Agendamento excluído com sucesso!")
 #-------
